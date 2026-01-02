@@ -1,0 +1,128 @@
+from uuid import UUID
+
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Literal, Optional, AnyStr
+from datetime import datetime
+
+from typing_extensions import Any
+
+
+class Course(BaseModel):
+    title: str
+    level: Literal["beginner", "intermediate", "advanced"] = "beginner"
+    price: float | int
+    duration_weeks: int
+    prerequisites: List[str] = Field(default_factory=list)
+    skills: List[str] = []
+    category: str
+    mode: Literal["online", "offline", "hybrid"] = "online",
+    # description: str | None = "",
+    # curriculum: str | None = "",
+    # faq: str | None = "",
+
+
+    # created_at: datetime = datetime.now().isoformat()
+    # updated_at: datetime = datetime.now().isoformat()
+
+
+class CourseChunk(BaseModel):
+    course_id: str | UUID
+    chunk_index: int
+    content: str
+    embedding: list[float]
+
+
+
+class CourseDetails(BaseModel):
+    course_id: str | UUID
+    description: str
+    curriculum: str
+    faq: str
+    outcomes: str
+    additional_info: str
+
+
+class UpdateCourseMetaData(BaseModel):
+    level: Optional[Literal["beginner", "intermediate", "advanced"]] = None
+    price: Optional[int] = None
+    duration_weeks: Optional[int] = None
+    prerequisites: Optional[List[str]] = None
+    skills: Optional[List[str]] = None
+    category: Optional[str] = None
+    mode: Optional[Literal["online", "offline", "hybrid"]] = None
+
+
+class UpdateCourseDetails(BaseModel):
+    description: Optional[str] = None
+    curriculum: Optional[str] = None
+    faq: Optional[str] = None
+    outcomes: Optional[str] = None
+    additional_info: Optional[str] = None
+
+
+class UserDetails(BaseModel):
+    name: str
+    email: str
+    contact_number: str
+    
+    @field_validator("contact_number")
+    def validate_contact_number(cls, v):
+        if not (v[1::].isdigit() or v.startswith('+')) or len(v) < 7 or len(v) > 15 or not v.startswith(('+')):
+            raise ValueError("Invalid contact number")
+        print("Validated contact number:", v)
+        return v
+
+
+class UserRegistration(UserDetails):
+    password: str
+
+class LoginSchema(BaseModel):
+    email: str
+    password: str
+
+class ModuleDetails(BaseModel):
+    name: str
+
+
+class LessonDetails(BaseModel):
+    name: str
+    lesson_content: str = Field(...)
+
+
+class VideoDetails(BaseModel):
+    lesson_id: str | UUID
+    video_url: Optional[str] = None
+    transcription_mode: Literal["No", "Manual", "Auto"] = "No"
+
+
+class VideoTranscription(BaseModel):
+    video_id : str | UUID
+    transcription: str
+
+
+class LessonDetailsChunk(BaseModel):
+    lesson_id: str | UUID
+
+
+class PageContext(BaseModel):
+    title: str
+    url: str
+    slug: str
+    content: str
+
+
+class UserContext(BaseModel):
+    name: str
+    email: str
+    contact_number: str
+
+
+class AgentContext(BaseModel):
+    page_context: Optional[PageContext] = None
+    user_context: Optional[UserContext] = None
+
+
+class ChatPayload(BaseModel):
+    session_id: str
+    message: str
+    context: Optional[AgentContext] = {}

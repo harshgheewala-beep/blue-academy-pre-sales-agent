@@ -29,6 +29,10 @@ class PreSalesAgentResponseSchema(BaseModel):
         description="A list of suggested next steps or interactive buttons for the user.")
 
 
+class PreSalesCallAgentResponseSchema(BaseModel):
+    speech: str = Field(title="Speech", description="The natural language response to be spoken or read by the user")
+
+
 class PostSalesAgentResponseSchema(BaseModel):
     speech: str
     intent: str

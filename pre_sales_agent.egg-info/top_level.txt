@@ -1,4 +1,0 @@
-assistants
-model
-route
-services

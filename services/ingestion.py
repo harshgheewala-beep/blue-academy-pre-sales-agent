@@ -1,11 +1,10 @@
-from supabase.client import Client
 from openai import OpenAI
 import os
 import tiktoken
 from uuid import UUID
 from dotenv import load_dotenv
 import logging
-from services.weaviate import upsert_course_embedding
+from services.weaviate_service import upsert_course_embedding
 
 
 load_dotenv()
@@ -21,9 +20,9 @@ client = OpenAI(
 async def build_chunks(payload: dict)-> str:
     return " ".join([
         payload["course_title"],
-        f",Pricing is {payload["fee"]},",
-        f",Skills Gain : {payload["skills"]},",
-        f"Category is {payload["category"]}",
+        f",Pricing is {payload['fee']},",
+        f",Skills Gain : {payload['skills']},",
+        f"Category is {payload['category']}",
         payload["hero_features"],
         payload["curriculum"],
         payload["course_description"],

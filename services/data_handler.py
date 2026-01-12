@@ -126,6 +126,8 @@ def clean_chat(list_chat: list[Any])-> list[dict]:
         role = item.get("role",None)
         content = item.get("content",None)
         if role == "user":
+            if content == "":
+                continue
             cleaned_chat.append({
                 "role":"user",
                 "content":content
@@ -139,11 +141,40 @@ def clean_chat(list_chat: list[Any])-> list[dict]:
 
             try:
                 parsed_content = json.loads(text_content)
+                parsed_content['speech'] = clean_speech_output(parsed_content['speech'])
                 cleaned_chat.append({"role":"assistant","content":parsed_content})
             except Exception as e:
-                print(str(e))
                 cleaned_chat.append({"role":"assistant","content":text_content})
         else:
             pass
 
     return cleaned_chat
+
+
+def clean_speech_output(speech: str) -> str:
+    """Remove markdown formatting from speech output"""
+
+    # Remove bold/italic
+    speech = re.sub(r'\*\*(.+?)\*\*', r'\1', speech)
+    speech = re.sub(r'\*(.+?)\*', r'\1', speech)
+    speech = re.sub(r'__(.+?)__', r'\1', speech)
+    speech = re.sub(r'_(.+?)_', r'\1', speech)
+
+    # Remove headers
+    speech = re.sub(r'^#+\s+', '', speech, flags=re.MULTILINE)
+
+    # Remove code blocks
+    speech = re.sub(r'```.*?```', '', speech, flags=re.DOTALL)
+    speech = re.sub(r'`(.+?)`', r'\1', speech)
+
+    # Remove links but keep text
+    speech = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', speech)
+
+    # Remove bullet points
+    speech = re.sub(r'^[\*\-\+]\s+', '', speech, flags=re.MULTILINE)
+
+    # Clean up extra whitespace
+    speech = re.sub(r'\n{3,}', '\n\n', speech)
+    speech = speech.strip()
+
+    return speech

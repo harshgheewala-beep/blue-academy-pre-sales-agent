@@ -6,19 +6,24 @@ from agents import set_trace_processors
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langsmith.integrations.openai_agents_sdk import OpenAIAgentsTracingProcessor
+from starlette.responses import JSONResponse
+
 from config import CHAT_WIDGET_EMBEDDING_DIR
 from logging_config import setup_logging
 from route import agent_route, internal_route
-from services.auth_middleware import AuthMiddleware
+from services.auth_middleware import LogMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from services.postgres_db import init_async_engine, dispose_async_engine
 from services.redis_service import disconnect_redis
-from services.weaviate import init_weaviate, close_weaviate
+from services.sqlite_db import init_sqlite, init_sqlite_db, close_sqlite
+from services.weaviate_service import init_weaviate, close_weaviate
 
 BASE_DIR = Path(__file__).resolve().parent
+SQLITE_DB_PATH = BASE_DIR / 'agents_history.db'
 CHAT_EMBEDDING_DIR = BASE_DIR / "frontend-embedding"
 FRONTEND_DIR = BASE_DIR / "frontend"
-
+POSTGRES_URI = os.getenv("RENDER_PG_URI")
 
 
 setup_logging()
@@ -35,9 +40,20 @@ async def lifespan(app: FastAPI):
     )
 
     await init_weaviate()
+    init_sqlite(SQLITE_DB_PATH)
+    init_sqlite_db()
+    init_async_engine(
+        url=POSTGRES_URI,
+        pool_size=10,
+        max_overflow=20,
+        echo=False
+    )
     yield
     await disconnect_redis()
     await close_weaviate()
+    close_sqlite()
+    await dispose_async_engine()
+
 
 
 app = FastAPI(
@@ -68,7 +84,7 @@ app.add_middleware(
 )
 
 
-app.add_middleware(AuthMiddleware)
+app.add_middleware(LogMiddleware)
 
 app.mount(
     "/chat-widget",
@@ -76,9 +92,13 @@ app.mount(
     name="embedding"
 )
 
-# app.mount("/app",
-#           StaticFiles(directory=FRONTEND_DIR, html=True),
-#           name="frontend")
+
+@app.get('/health')
+async def health():
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok"}
+    )
 
 
 if __name__ == "__main__":

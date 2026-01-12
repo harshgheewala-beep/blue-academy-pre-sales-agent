@@ -1,13 +1,12 @@
 import logging
 import os
 from dotenv import load_dotenv
-from weaviate import use_async_with_embedded, use_async_with_weaviate_cloud
+import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.query import Filter
 from uuid import uuid5, NAMESPACE_DNS
-from weaviate.classes.query import Rerank, MetadataQuery
+from weaviate.classes.query import MetadataQuery
 from weaviate.client import WeaviateAsyncClient
-from weaviate.collections.classes.config import Configure
 from weaviate.exceptions import WeaviateInvalidInputException
 
 
@@ -18,25 +17,14 @@ logger = logging.getLogger("Weaviate")
 
 
 WEAVIATE_URL = os.getenv("WEAVIATE_URL")
-WEAVIATE_GRPC = os.getenv("WEAVIATE_GRPC")
 WEAVIATE_KEY = os.getenv("WEAVIATE_API_KEY")
-JINA_API_KEY = os.getenv("JINA_API_KEY")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "course_embeddings")
-headers = {
-    "X-JinaAI-Api-Key": JINA_API_KEY,
-}
 
 
-# weaviate_client = WeaviateAsyncClient(
-#     auth_client_secret=Auth.api_key(WEAVIATE_KEY),
-#     additional_headers=headers,
-#
-# )
-
-weaviate_client: WeaviateAsyncClient = use_async_with_weaviate_cloud(
+weaviate_client: WeaviateAsyncClient = weaviate.use_async_with_weaviate_cloud(
     auth_credentials=Auth.api_key(WEAVIATE_KEY),
     cluster_url=WEAVIATE_URL,
-    headers=headers,
+    skip_init_checks=False
 )
 
 
@@ -45,12 +33,9 @@ async def init_weaviate():
     logger.info("Initializing weaviate...")
     await weaviate_client.connect()
     if not await weaviate_client.collections.exists(COLLECTION_NAME):
-        # print("Creating collection...")
         await weaviate_client.collections.create(
                 name=COLLECTION_NAME,
-                reranker_config=Configure.Reranker.jinaai()
             )
-        # print("Collection created Successfully.")
     logger.info("Connected to weaviate.")
 
 
@@ -142,7 +127,17 @@ async def fetch_similar_courses(query: str, vector: list[float] | list[int]):
                     limit=12,
                     alpha=0.6,
                     vector=vector,
-                    threshold=0.6,
+        return_properties=[
+            'course_title',
+            'slug',
+            'category',
+            'skills',
+            'prerequisites',
+            'hero_features',
+            'target_audience',
+            'duration',
+            'pricing',
+        ],
         return_metadata=MetadataQuery(
                     score=True,
                     last_update_time=False,

@@ -4,19 +4,17 @@ import logging
 import uuid
 from agents import Runner, SQLiteSession, RunConfig
 from agents.extensions.memory import SQLAlchemySession
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from assistants.sales.general_agent import PreSalesAgent
+from assistants.sales.pre_sales_agent import PreSalesAgent, PreSalesCallAgent
 from uuid import uuid4, uuid5
 import time
-
 from model.input_schema import ChatPayload
-from model.output_schema import PreSalesAgentResponseSchema
-from services.data_handler import clean_chat
+from model.output_schema import PreSalesAgentResponseSchema, PreSalesCallAgentResponseSchema
+from services.data_handler import clean_chat, clean_speech_output
 from services.page_data_handler import extract_page_info_from_url
-from services.redis_service import update_session_navigation, redis_client
-
-
+from services.redis_service import redis_client
+from services.session_handler import SessionManager
 
 logger = logging.getLogger("Agent Handler")
 
@@ -28,11 +26,22 @@ router = APIRouter(
 
 
 
-DEV_MODE = os.getenv("DEV_MODE", True)
 
 
-SESSION_TTL = 30 * 60  # 30 minutes
+DEV_MODE = os.getenv("DEV_MODE", 'False') == 'True'
+
+
+LOCK_TIMEOUT = 60        # max agent runtime
+BLOCKING_TIMEOUT = 0     # short wait
+SESSION_INFLIGHT_TTL = 90
+SESSION_TTL = 30*60
 SESSIONS = {}
+
+
+def get_agent_config(context):
+    if not context:
+        return PreSalesCallAgent,PreSalesCallAgentResponseSchema
+    return PreSalesAgent,PreSalesAgentResponseSchema
 
 
 def build_run_config(session_id: str) -> RunConfig:
@@ -68,18 +77,6 @@ def get_session(session_id=None):
     return session_id, SESSIONS[session_id]
 
 
-async def get_custom_session(session_id: str)-> SQLAlchemySession | SQLiteSession:
-    if DEV_MODE:
-        return SQLiteSession(
-            session_id=session_id,
-            db_path="agents_history.db")
-    return SQLAlchemySession.from_url(
-        session_id=session_id,
-        url=os.getenv("SQLALCHEMY_URL"),
-        create_tables = True,
-    )
-
-
 async def make_message_id(session_id: str,message: str)-> str:
     normalized = message.lower().strip()
     name = f"{session_id}:{normalized}"
@@ -88,17 +85,6 @@ async def make_message_id(session_id: str,message: str)-> str:
         namespace=uuid.NAMESPACE_DNS,
         name=name
     ))
-
-
-async def close_session(session):
-    if session is None:
-        return
-
-    close = getattr(session, "close", None)
-    if callable(close):
-        result = close()
-        if inspect.isawaitable(result):
-            await result
 
 
 # def get_agent_config(agent_type: str, context = Optional[dict])->dict:
@@ -126,9 +112,8 @@ async def close_session(session):
 @router.post("/chat",
              deprecated=True)
 def chat(payload: dict):
-    print(f"Payload: {payload}")
+    # print(f"Payload: {payload}")
     agent_type = payload.get("agent_type","pre_sales_agent")
-    print(f"agent_type: {agent_type}")
 
     # agent_config = get_agent_config(agent_type)
     # agent = agent_config["assistants"]
@@ -299,74 +284,78 @@ def get_chat(session_id: str | None = None):
 @router.get("/chat/history/{session_id}")
 async def get_chat_history(session_id: str):
 
-    session = await get_custom_session(session_id)
+
     try:
-        items = await session.get_items()
-        formatted_history = clean_chat(items)
+        async with SessionManager(session_id) as session:
+            items = await session.get_items()
+            formatted_history = clean_chat(items)
         return {"history": formatted_history}
-    finally:
-        await close_session(session)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal Server Error: {e}"
+        )
 
 
 @router.post("/chat/v2/with_history")
 async def chat_v2_session(chat_payload: ChatPayload):
-    payload = chat_payload.model_dump()
-    session_id = payload.get("session_id")
+    session_id = chat_payload.session_id
+    message = chat_payload.message
+    context_data = chat_payload.context.model_dump() if chat_payload.context else {}
+
+    agent,response_schema = get_agent_config(context_data)
+
+
     if not session_id:
         return JSONResponse(status_code=404,
                             content={"details": "Session ID not provided"})
-    message = payload.get("message", "")
-    context_data = payload.get("context", {})
 
+    page_context = context_data.get("page_context") or {}
 
-    if context_data.get("page_context",{}):
+    if page_context:
+        page_context = context_data["page_context"]
 
-        url = context_data.get("page_context",{}).get("url")
-        page_info = await extract_page_info_from_url(page_url=url) if url else {}
+        url = page_context.get("url")
 
-        if page_info.get("page_type") == "particular_course_page":
-            context_data["page_context"]["slug"] = page_info.get("slug")
-            context_data["page_context"]["page_type"] = page_info.get("page_type")
+        if url:
+            page_info = await extract_page_info_from_url(page_url=url)
 
+            if page_info.get("page_type") == "particular_course_page":
+                page_context["slug"] = page_info.get("slug")
+                page_context["page_type"] = page_info.get("page_type")
 
-        print(context_data)
-    session = await get_custom_session(session_id)
+        if page_context:
+            context_data["page_context"] = page_context
+
     try:
-        async with redis_client.lock(
+        async with SessionManager(session_id) as session:
+            async with redis_client.lock(
                 f"lock:session:{session_id}",
-                timeout=15,  # auto-release safety
-                blocking_timeout=15  # wait for other request
-        ):
-            # if url:
-            #     await update_session_navigation(session_id, url, page_info.get("slug"))
+                timeout=LOCK_TIMEOUT,  # auto-release safety
+                blocking_timeout=BLOCKING_TIMEOUT  # wait for other request
+            ):
+                start_time = time.perf_counter()
+                response = await Runner.run(
+                    agent(),
+                    message,
+                    session=session,
+                    context=context_data,
+                    run_config=build_run_config(session_id)
+                )
 
-            response = await Runner.run(
-                PreSalesAgent(),
-                message,
-                session=session,
-                context=context_data,
-                run_config=build_run_config(session_id)
-            )
-
-            raw_output = response.final_output
-            if isinstance(raw_output, PreSalesAgentResponseSchema):
-                reply = raw_output.model_dump()
-            elif isinstance(raw_output, dict):
-                reply = raw_output
-            else:
-                reply = {
-                    "speech": str(raw_output),
-                    "intent": "unknown",
-                    "actions": []
-                }
-
-            print(f"Reply : {reply}")
+        raw_output = response.final_output
+        reply = raw_output.model_dump() if isinstance(raw_output, response_schema) else raw_output
 
 
-            return {
-                "reply": reply,
-                "session_id": session_id
-            }
+        reply['speech'] = clean_speech_output(reply['speech'])
+        logger.info(f"Reply Generated for {session_id} in {time.perf_counter() - start_time}")
+
+
+        return {
+            "reply": reply,
+            "session_id": session_id
+        }
+
     except Exception:
         logger.exception(f"Agent Execution Failed")
-        return {"error":"Internal Server Error"}
+        raise HTTPException(status_code=500, detail="Internal Server Error")

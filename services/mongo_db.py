@@ -1,15 +1,12 @@
-import asyncio
 import datetime
 import os
-
-import bson
 from dotenv import load_dotenv
 import logging
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 from bson.objectid import ObjectId
-from datetime import timezone
-from bson.timestamp import Timestamp
+from pymongo.errors import DuplicateKeyError
 
+from services.data_handler import clean_data_v2, clean_text, extract_text
 
 load_dotenv()
 
@@ -19,7 +16,7 @@ logger = logging.getLogger("Mongo DB")
 
 uri = os.getenv("MONGO_URI")
 async_mongo_client = AsyncMongoClient(uri)
-
+dbname = async_mongo_client["blue-blue_academy"]
 
 def close_mongo_connection():
     logger.info("Closing mongo connection...")
@@ -39,11 +36,10 @@ def normalize_mongo_doc(obj):
     elif isinstance(obj, ObjectId):
         return str(obj)
     else:
-        return obj
+        return clean_text(extract_text(obj))
 
 
 async def update_sync_details():
-    dbname = async_mongo_client["blue-blue_academy"]
     collection = dbname["update_sync_details"]
     await collection.update_one(
         filter={
@@ -59,7 +55,6 @@ async def update_sync_details():
 
 
 async def get_sync_details():
-    dbname = async_mongo_client["blue-blue_academy"]
     collection = dbname["update_sync_details"]
     sync_details = await collection.find_one()
 
@@ -68,7 +63,6 @@ async def get_sync_details():
 
 
 async def fetch_page_data_using_slug(slug: str)-> dict | None:
-    dbname = async_mongo_client["blue-blue_academy"]
     collection = dbname["courses"]
     pipeline = [
         {"$match": {"slug": slug}},
@@ -97,8 +91,9 @@ async def fetch_page_data_using_slug(slug: str)-> dict | None:
     # result = await cursor.to_list()
     # result = collection.aggregate(pipeline).to_list()
 
-    cleaned_result = normalize_mongo_doc(result)
-    return cleaned_result
+    normalized_result = normalize_mongo_doc(result)
+
+    return normalized_result
 
 
 async def fetch_changes(last_timestamp: datetime.datetime) -> list[dict]:
@@ -154,7 +149,7 @@ async def fetch_changes(last_timestamp: datetime.datetime) -> list[dict]:
 
 
 async def increment_interest_count(course_slug:str):
-    dbname = async_mongo_client["blue-blue_academy"]
+
     collection = dbname["course_interest"]
     await collection.update_one(
         {"course_slug": course_slug},
@@ -166,3 +161,22 @@ async def increment_interest_count(course_slug:str):
         },
         upsert=True
     )
+
+async def mark_course_lead(course_slug:str, user_payload: dict):
+    collection = dbname["lead_capture"]
+    try:
+        result = await collection.insert_one(
+            {
+                "course_slug": course_slug,
+                "name": user_payload["name"],
+                "email": user_payload["email"],
+                "contact": user_payload["contact"],
+            }
+        )
+
+        return result.acknowledged
+
+    except DuplicateKeyError:
+        return "User already added for this course follow up"
+
+

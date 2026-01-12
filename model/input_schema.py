@@ -6,6 +6,8 @@ from datetime import datetime
 
 from typing_extensions import Any
 
+from model.output_schema import CourseRef
+
 
 class Course(BaseModel):
     title: str
@@ -105,16 +107,13 @@ class LessonDetailsChunk(BaseModel):
 
 
 class PageContext(BaseModel):
-    title: str
-    url: str
-    slug: str
-    content: str
+    title: Optional[str] = None
+    url: Optional[str] = None
 
 
 class UserContext(BaseModel):
-    name: str
-    email: str
-    contact_number: str
+    action: Optional[str] = None
+    course: Optional[CourseRef] = None
 
 
 class AgentContext(BaseModel):
@@ -125,4 +124,10 @@ class AgentContext(BaseModel):
 class ChatPayload(BaseModel):
     session_id: str
     message: str
-    context: Optional[AgentContext] = {}
+    context: Optional[AgentContext] = None
+
+
+class UserContactDetails(BaseModel):
+    name: str
+    email: str
+    contact_number: str

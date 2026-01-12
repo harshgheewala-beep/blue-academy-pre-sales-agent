@@ -1,12 +1,8 @@
-import asyncio
 import os
 import json, time
 from redis.asyncio.client import Redis
-from redis.cache import CacheConfig
 from dotenv import load_dotenv
 import logging
-
-
 load_dotenv()
 
 
@@ -28,6 +24,8 @@ redis_client  = Redis(
     decode_responses=DECODE_RESPONSE,
     protocol=3
 )
+
+REDIS_URL=f"redis://{REDIS_USERNAME}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}"
 
 
 async def disconnect_redis():
@@ -52,3 +50,4 @@ async def update_session_navigation(
     }
 
     await redis_client.set(key, json.dumps(payload), ex=NAV_TTL)
+

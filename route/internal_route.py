@@ -1,9 +1,10 @@
 import time
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from services.mongo_db import get_sync_details, update_sync_details, fetch_changes
+import uuid
+from services.mongo_db import get_sync_details, update_sync_details, fetch_changes, increment_interest_count
 from services.ingestion import ingest_course_embedding
-from services.weaviate import delete_weaviate_object
+from services.weaviate_service import delete_weaviate_object
 from services.data_handler import clean_data_v2
 import json
 from starlette.responses import JSONResponse
@@ -70,7 +71,7 @@ async def sync_mongo_data():
             )
 
         slugs_to_purge = [doc["slug"] for doc in changes]
-        updated_data = [docs for docs in changes if not docs["isDeleted"]]
+        updated_data = [doc for doc in changes if not doc["isDeleted"]]
 
         await delete_weaviate_object(slugs_to_purge)
 
@@ -106,3 +107,13 @@ async def sync_mongo_data():
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to sync data :{str(e)}")
+
+
+
+@router.post('/mark_user_interested/{course_slug}')
+async def mark_user_interested(course_slug: str):
+    try:
+        await increment_interest_count(course_slug)
+        return True
+    except Exception as e:
+        return False

@@ -1,37 +1,49 @@
-# --- Stage 1: Build stage ---
-FROM python:3.11-slim AS builder
-
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy dependency files
-COPY pyproject.toml .
-# README is often required by pyproject metadata
-COPY README.md .
-
-# Install dependencies into a specific prefix
-RUN pip install --upgrade pip && \
-    pip install --prefix=/install .
-
-# --- Stage 2: Final runtime stage ---
+# Use Python 3.11 slim image as base
 FROM python:3.11-slim
 
+# Set working directory
 WORKDIR /app
 
-# Copy the installed library files from the FIRST stage
-COPY --from=builder /install /usr/local
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
 
-# Copy your actual source code
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    gcc \
+    g++ \
+    curl \
+    git \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install Poetry and dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-interaction --no-ansi --no-root
+
+# Copy application code
 COPY . .
 
-# Security: Run as non-root user
-RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app
-USER appuser
+# Create a non-root user
+RUN useradd -m -u 1000 presales && \
+    chown -R presales:presales /app
 
-EXPOSE 8000
+# Switch to non-root user
+USER presales
 
-CMD ["uvicorn", "main:app", "--port", "8000", "--reload"]
+# Expose port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+# Run the application
+CMD ["python","-m","uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000","--workers","1"]

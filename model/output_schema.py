@@ -1,5 +1,16 @@
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, List
+from enum import Enum
+
+
+class GuardrailDecision(str, Enum):
+    course_inquiry = "COURSE_INQUIRY"
+    page_inquiry = "PAGE_INQUIRY"
+    lead_information = "LEAD_INFORMATION"
+    greeting_or_small_talk = "GREETING_SMALLTALK"
+    out_of_scope_technical = "OUT_OF_SCOPE_TECHNICAL"
+    out_of_scope_general = "OUT_OF_SCOPE_GENERAL"
+    unknown = "UNKNOWN"
 
 
 class CourseRef(BaseModel):
@@ -33,13 +44,29 @@ class PreSalesCallAgentResponseSchema(BaseModel):
     speech: str = Field(title="Speech", description="The natural language response to be spoken or read by the user")
 
 
-class PostSalesAgentResponseSchema(BaseModel):
-    speech: str
-    intent: str
-    confidence: Literal["low", "medium", "high"]
-    lesson: Optional[List[LessonRef]] = []
-    actions: Optional[List[AgentAction]] = []
 
+class GuardrailAgentResponse(BaseModel):
+    """Guardrail classification response"""
+    guardrail_decision: GuardrailDecision = Field(
+        description="Classification of user intent"
+    )
+    reason: str = Field(
+        description="Brief reason for classification (1 sentence)",
+        max_length=150
+    )
+    speech: str = Field(
+        default="",
+        description="Response text. Empty string if routing to pre-sales agent, otherwise 1-2 sentence direct response"
+    )
+
+    @property
+    def should_route_to_presales(self) -> bool:
+        """Check if request should be routed to pre-sales agent"""
+        return self.guardrail_decision in [
+            GuardrailDecision.course_inquiry,
+            GuardrailDecision.page_inquiry,
+            GuardrailDecision.lead_information
+        ]
 
 
 OUTPUT_SCHEMA ={

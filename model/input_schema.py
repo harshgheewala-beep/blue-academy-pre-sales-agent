@@ -1,9 +1,7 @@
 from uuid import UUID
-
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Literal, Optional, AnyStr
 from datetime import datetime
-
 from typing_extensions import Any
 
 from model.output_schema import CourseRef

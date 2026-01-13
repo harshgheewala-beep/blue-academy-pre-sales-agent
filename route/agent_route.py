@@ -6,6 +6,8 @@ from agents import Runner, SQLiteSession, RunConfig
 from agents.extensions.memory import SQLAlchemySession
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+
+from assistants.sales.guardrail_agent import GuardrailAgent
 from assistants.sales.pre_sales_agent import PreSalesAgent, PreSalesCallAgent
 from uuid import uuid4, uuid5
 import time
@@ -306,9 +308,11 @@ async def chat_v2_session(chat_payload: ChatPayload):
     agent,response_schema = get_agent_config(context_data)
 
 
+
     if not session_id:
         return JSONResponse(status_code=404,
                             content={"details": "Session ID not provided"})
+
 
     page_context = context_data.get("page_context") or {}
 
@@ -334,6 +338,21 @@ async def chat_v2_session(chat_payload: ChatPayload):
                 timeout=LOCK_TIMEOUT,  # auto-release safety
                 blocking_timeout=BLOCKING_TIMEOUT  # wait for other request
             ):
+                guardrail_response = await Runner.run(
+                    GuardrailAgent(),
+                    input=message,
+                    context=None,
+                    run_config=build_run_config(session_id=session_id),
+                    session=session)
+
+                if not guardrail_response.final_output.should_route_to_presales:
+                    logger.info('Out of Scope Query detected by Guardrail Agent')
+
+                    return {
+                        "reply": guardrail_response.final_output.model_dump(),
+                        "session_id": session_id
+                    }
+
                 start_time = time.perf_counter()
                 response = await Runner.run(
                     agent(),

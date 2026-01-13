@@ -32,6 +32,10 @@ router = APIRouter(
 
 DEV_MODE = os.getenv("DEV_MODE", 'False') == 'True'
 
+GUARDRAIL_AGENT = GuardrailAgent()
+PRE_SALES_AGENT = PreSalesAgent()
+PRE_SALES_CALL_AGENT = PreSalesCallAgent()
+
 
 LOCK_TIMEOUT = 60        # max agent runtime
 BLOCKING_TIMEOUT = 0     # short wait
@@ -42,8 +46,8 @@ SESSIONS = {}
 
 def get_agent_config(context):
     if not context:
-        return PreSalesCallAgent,PreSalesCallAgentResponseSchema
-    return PreSalesAgent,PreSalesAgentResponseSchema
+        return PRE_SALES_CALL_AGENT,PreSalesCallAgentResponseSchema
+    return PRE_SALES_AGENT,PreSalesAgentResponseSchema
 
 
 def build_run_config(session_id: str) -> RunConfig:
@@ -339,7 +343,7 @@ async def chat_v2_session(chat_payload: ChatPayload):
                 blocking_timeout=BLOCKING_TIMEOUT  # wait for other request
             ):
                 guardrail_response = await Runner.run(
-                    GuardrailAgent(),
+                    GUARDRAIL_AGENT,
                     input=message,
                     context=None,
                     run_config=build_run_config(session_id=session_id),
@@ -355,7 +359,7 @@ async def chat_v2_session(chat_payload: ChatPayload):
 
                 start_time = time.perf_counter()
                 response = await Runner.run(
-                    agent(),
+                    agent,
                     message,
                     session=session,
                     context=context_data,

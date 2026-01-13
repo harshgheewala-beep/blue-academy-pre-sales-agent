@@ -43,7 +43,7 @@ def init_async_engine(
 ) -> AsyncEngine:
     global _engine
     if _engine is None:
-        logger.info("Creating async engine...")
+        logger.info("Creating Async Engine...")
         _engine = create_async_engine(
             url,
             pool_size=pool_size,

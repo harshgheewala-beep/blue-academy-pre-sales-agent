@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent
 SQLITE_DB_PATH = BASE_DIR / 'agents_history.db'
 CHAT_EMBEDDING_DIR = BASE_DIR / "frontend-embedding"
 FRONTEND_DIR = BASE_DIR / "frontend"
-POSTGRES_URI = os.getenv("RENDER_PG_URI")
+POSTGRES_URI = os.getenv("SQLALCHEMY_URL")
 
 
 setup_logging()

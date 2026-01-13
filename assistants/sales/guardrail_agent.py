@@ -13,7 +13,6 @@ COURSE_INQUIRY: ANY question or interest about learnable topics, including:
 - "What is [topic]?" (wants to understand/learn)
 - "I'm interested in [topics/skills]" (exploring learning options)
 - "Tell me about [subject]" (seeking educational information)
-- "How does [technology] work?" (wants conceptual understanding)
 - Questions about course content, curriculum, pricing, instructors
 - ANY technology, skill, or subject = potential learning interest
 - ANY mention of interest in a topic of Subject 

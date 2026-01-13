@@ -32,6 +32,7 @@ OUT_OF_SCOPE_TECHNICAL: Active implementation/troubleshooting (NOT learning ques
 - "Debug my code", "Fix my error", "My app crashed"
 - "How do I configure [specific tool] in my current project?"
 - Clear context of active development/operations work
+- How does [some kind of concept] works?
 → Redirect to technical support
 
 OUT_OF_SCOPE_GENERAL: Non-educational topics (weather, sports, news, gossip)

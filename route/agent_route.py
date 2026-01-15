@@ -1,18 +1,19 @@
 import inspect
+import json
 import os
 import logging
 import uuid
-from agents import Runner, SQLiteSession, RunConfig
+from agents import Runner, SQLiteSession, RunConfig, InputGuardrailTripwireTriggered, InputGuardrailResult
 from agents.extensions.memory import SQLAlchemySession
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from assistants.sales.guardrail_agent import GuardrailAgent
+from assistants.sales.guardrail_agent import GuardrailAgent, build_guardrail_message
 from assistants.sales.pre_sales_agent import PreSalesAgent, PreSalesCallAgent
 from uuid import uuid4, uuid5
 import time
 from model.input_schema import ChatPayload
-from model.output_schema import PreSalesAgentResponseSchema, PreSalesCallAgentResponseSchema
+from model.output_schema import PreSalesAgentResponseSchema, PreSalesCallAgentResponseSchema, GuardrailAgentResponse
 from services.data_handler import clean_chat, clean_speech_output
 from services.page_data_handler import extract_page_info_from_url
 from services.redis_service import redis_client
@@ -342,42 +343,46 @@ async def chat_v2_session(chat_payload: ChatPayload):
                 timeout=LOCK_TIMEOUT,  # auto-release safety
                 blocking_timeout=BLOCKING_TIMEOUT  # wait for other request
             ):
-                guardrail_response = await Runner.run(
-                    GUARDRAIL_AGENT,
-                    input=message,
-                    context=None,
-                    run_config=build_run_config(session_id=session_id),
-                    session=session)
+                try:
+                    start_time = time.perf_counter()
+                    response = await Runner.run(
+                        agent,
+                        message,
+                        session=session,
+                        context=context_data,
+                        run_config=build_run_config(session_id)
+                    )
 
-                if not guardrail_response.final_output.should_route_to_presales:
-                    logger.info('Out of Scope Query detected by Guardrail Agent')
+
+                    raw_output = response.final_output
+                    reply = raw_output.model_dump() if isinstance(raw_output, response_schema) else raw_output
+
+
+                    reply['speech'] = clean_speech_output(reply['speech'])
+                    logger.info(f"Reply Generated for {session_id} in {time.perf_counter() - start_time}")
+
 
                     return {
-                        "reply": guardrail_response.final_output.model_dump(),
+                        "reply": reply,
                         "session_id": session_id
                     }
 
-                start_time = time.perf_counter()
-                response = await Runner.run(
-                    agent,
-                    message,
-                    session=session,
-                    context=context_data,
-                    run_config=build_run_config(session_id)
-                )
-
-        raw_output = response.final_output
-        reply = raw_output.model_dump() if isinstance(raw_output, response_schema) else raw_output
+                except InputGuardrailTripwireTriggered as e:
+                    guardrail_result = e.guardrail_result
 
 
-        reply['speech'] = clean_speech_output(reply['speech'])
-        logger.info(f"Reply Generated for {session_id} in {time.perf_counter() - start_time}")
+                    guardrail_output: GuardrailAgentResponse = (
+                    guardrail_result.output.output_info
+                    )
 
+                    session_item = build_guardrail_message(guardrail_output)
+                    await session.add_items(session_item)
 
-        return {
-            "reply": reply,
-            "session_id": session_id
-        }
+                    return {
+                        "reply": guardrail_output.model_dump(),
+                        "session_id": session_id
+                    }
+
 
     except Exception:
         logger.exception(f"Agent Execution Failed")

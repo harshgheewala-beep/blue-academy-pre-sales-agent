@@ -176,10 +176,12 @@ class SQLAlchemySession(SessionABC):
 
         await self._ensure_tables()
 
+
         payload = [
-            {"session_id": self.session_id, "message_data": json.dumps(i)}
-            for i in items
-        ]
+                {"session_id": self.session_id, "message_data": json.dumps(i)}
+                for i in items if not isinstance(items, dict)
+            ]
+
 
         async with self._session_factory() as sess:
             async with sess.begin():

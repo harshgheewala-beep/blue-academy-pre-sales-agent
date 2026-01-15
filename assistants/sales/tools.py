@@ -1,4 +1,6 @@
-from pydantic import Field, BaseModel
+from pydantic import Field, BaseModel, field_validator
+
+from model.input_schema import LeadDetails
 from services import similarity
 from services.page_data_handler import resolve_page_data_by_slug
 from agents import function_tool
@@ -45,21 +47,17 @@ async def get_similar_course_chunks(query: str)->list[dict]:
 @function_tool(name_override="get_current_page_data_using_slug")
 async def get_current_page_data_using_slug(slug: str) -> dict:
     """
-    Fetch page data by slug.
+    Fetch current page data by slug.
     Read Only
     Args: slug.
-    :return dict:
+    Returns dict:
     """
     page_data, _ = await resolve_page_data_by_slug(slug)
     return page_data or {}
 
 
 
-class LeadDetails(BaseModel):
-    name: str = Field(..., description="The full name of the user. Do not guess.")
-    email: str = Field(..., description="A valid email address provided by the user.")
-    contact: str = Field(..., description="The phone number starting with +.")
-    slug: str = Field(..., description="The slug of the course the user is interested in.")
+
 
 
 @function_tool(name_override="mark_user_lead")
@@ -70,20 +68,25 @@ async def mark_user_lead(
     Use this function to mark user's interest in course to provide them follow up
     [Critical]
     Always provide user details given name, email, contact and slug
-    Do not call this call if you don't have user's contact details
+    Do not call this call if you don't have all user's contact details
     This field can't be empty string `""` or None
+    So gather all details from user.
     Args:
         details:
     Returns:
         String indicating user marked for follow up
     """
 
-
     invalid_placeholders = {
         "user",
         "user@example.com",
-        "+123456789",
+        "+1234567890",
+        "none",
+        "null"
     }
+
+    if (not details.name or details.name == "") or (not details.email or details.email == '') or (not details.contact or details.contact == ''):
+        return 'Please Provide all the contact details properly'
 
     if details.name.lower() in invalid_placeholders:
         return "Please provide your real name."
@@ -94,14 +97,7 @@ async def mark_user_lead(
     if details.contact in invalid_placeholders:
         return "Please provide a valid contact number."
 
-    if not details.name or details.name == "":
-        return "Please provide your name"
 
-    if not details.email or details.email == "":
-        return "Please provide your email"
-
-    if not details.contact or details.contact == "":
-        return "Please provide your contact"
 
     result = await mark_course_lead(
         course_slug=details.slug,

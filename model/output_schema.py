@@ -19,11 +19,6 @@ class CourseRef(BaseModel):
     slug: str = Field(title="Course Slug", description="The slug of the course")
 
 
-class LessonRef(BaseModel):
-    id: str
-    name: str
-
-
 
 class AgentAction(BaseModel):
     type: Literal["details", "interest"] = Field(title="Action Type", description="The type of UI component to render.")
@@ -60,9 +55,9 @@ class GuardrailAgentResponse(BaseModel):
     )
 
     @property
-    def should_route_to_presales(self) -> bool:
+    def is_guardrail_output_triggered(self) -> bool:
         """Check if request should be routed to pre-sales agent"""
-        return self.guardrail_decision in [
+        return self.guardrail_decision not in [
             GuardrailDecision.course_inquiry,
             GuardrailDecision.page_inquiry,
             GuardrailDecision.lead_information

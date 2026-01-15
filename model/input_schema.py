@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Literal, Optional, AnyStr
 from datetime import datetime
 from typing_extensions import Any
+import re
 
 from model.output_schema import CourseRef
 
@@ -118,7 +119,7 @@ class AgentContext(BaseModel):
     page_context: Optional[PageContext] = None
     user_context: Optional[UserContext] = None
 
-
+#API Schema
 class ChatPayload(BaseModel):
     session_id: str
     message: str
@@ -129,3 +130,30 @@ class UserContactDetails(BaseModel):
     name: str
     email: str
     contact_number: str
+
+
+#Tool Schema
+class LeadDetails(BaseModel):
+    name: str = Field(..., description="The full name of the user. Do not guess.")
+    email: str = Field(..., description="A valid email address provided by the user.")
+    contact: str = Field(..., description="The phone number starting with +.")
+    slug: str = Field(..., description="The slug of the course the user is interested in.")
+
+    # @field_validator('email')
+    # def validate_email(cls, v):
+    #     if not re.match(
+    #             r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
+    #         raise "Invalid email"
+    #     return v
+    #
+    # @field_validator('contact')
+    # def validate_contact_number(cls, v):
+    #     if not v.startswith('+') or len(v) < 7:
+    #         return 'Invalid contact number'
+    #     if not v[1:].isdigit():
+    #         return 'Invalid contact number'
+    #
+    #     if re.match(r'^\+?\(?\d{1,3}\)?[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$', v):
+    #         return v
+    #
+    #     return v

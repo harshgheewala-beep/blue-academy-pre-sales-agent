@@ -79,6 +79,10 @@ Others: speech=direct response (1-2 sentences)
         OR 
         ->GREETING_SMALLTALK (IF assistant has not asked for contact details for lead capture previously or user has not shown interest in any course))
 
+If User is asking for his/her own details or chat history
+->Route to pre-sales agent
+
+
 Classify now.
 
 """

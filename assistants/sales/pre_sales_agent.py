@@ -11,8 +11,6 @@ from assistants.sales.tools import get_current_page_data_using_slug, get_similar
 load_dotenv()
 
 
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
-COURSE_PAGE_URL = f"{BASE_URL}/app/course_details.html"
 model_settings = ModelSettings(
     temperature=0.6,
     top_p=1.0

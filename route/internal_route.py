@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 import uuid
 from services.mongo_db import get_sync_details, update_sync_details, fetch_changes, increment_interest_count
-from services.ingestion import ingest_course_embedding
+from services.ingestion import  ingest_course_embedding
 from services.weaviate_service import delete_weaviate_object
 from services.data_handler import clean_data_v2
 import json
@@ -66,44 +66,50 @@ async def sync_mongo_data():
             return JSONResponse(
                 status_code=200,
                 content={
-                    "details": "Data is already synced"
+                    'status': 'no operations',
+                    'message': 'Data is already synced',
+                    'total_changes': 0
                 }
             )
 
         slugs_to_purge = [doc["slug"] for doc in changes]
-        updated_data = [doc for doc in changes if not doc["isDeleted"]]
+        deleted_docs = [doc for doc in changes if doc['isDeleted']]
+        active_changed_docs = [doc for doc in changes if not doc['isDeleted']]
+
 
         await delete_weaviate_object(slugs_to_purge)
 
-        if not updated_data:
+        if not active_changed_docs:
             return JSONResponse(
                 status_code=200,
                 content = {
-                    "details": "Data Synced Successfully"
+                    'status': 'success',
+                    'message': 'Data synced successfully',
+                    'total_changes': len(changes),
+                    'delete_count': len(deleted_docs),
+                    'update_count': 0,
                 }
             )
 
         # Uncomment this if v2 does not work
         # cleaned_data = clean_data(updated_data)
 
-        cleaned_data = clean_data_v2(updated_data)
+        cleaned_data = clean_data_v2(active_changed_docs)
 
-        ingestion_complete = await ingest_course_embedding(cleaned_data)
+        await ingest_course_embedding(cleaned_data)
 
-        if ingestion_complete:
-            await update_sync_details()
 
-            return {
-                "status": "success",
-                "message": "Data synced successful",
-            }
+        await update_sync_details()
 
-        else:
-            return {
-                "status": "fail",
-                "message": "Data synced failed",
-            }
-
+        return JSONResponse(
+                status_code=200,
+                content = {
+                    'status': 'success',
+                    "message": "Data synced successful",
+                    'delete_count': len(deleted_docs),
+                    'update_count': len(active_changed_docs),
+                }
+        )
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to sync data :{str(e)}")

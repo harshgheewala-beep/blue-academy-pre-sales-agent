@@ -6,7 +6,7 @@ from pymongo.asynchronous.mongo_client import AsyncMongoClient
 from bson.objectid import ObjectId
 from pymongo.errors import DuplicateKeyError
 
-from services.data_handler import clean_data_v2, clean_text, extract_text
+from services.data_handler import clean_text, extract_text
 
 load_dotenv()
 
@@ -75,6 +75,7 @@ async def fetch_page_data_using_slug(slug: str)-> dict | None:
             "category": 1,
             "duration": 1,
             "fee": 1,
+            "outcomes": 1,
             "skills": 1,
             "prerequisites": 1,
             "targetAudience": 1,
@@ -126,6 +127,7 @@ async def fetch_changes(last_timestamp: datetime.datetime) -> list[dict]:
             "subtitle": 1,
             "category":1,
             "duration":1,
+            "outcomes":1,
             "fee":1,
             "skills":1,
             "prerequisites":1,
@@ -161,6 +163,7 @@ async def increment_interest_count(course_slug:str):
         },
         upsert=True
     )
+
 
 async def mark_course_lead(course_slug:str, user_payload: dict):
     collection = dbname["lead_capture"]

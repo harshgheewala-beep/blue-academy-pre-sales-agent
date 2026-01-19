@@ -41,13 +41,15 @@ def normalize_mongo_doc(obj):
 
 async def update_sync_details():
     collection = dbname["update_sync_details"]
+    today = datetime.datetime.today().isoformat()
     await collection.update_one(
         filter={
             "_id": ObjectId('694259afeec2a03a77624388')
         },
         update={
             "$set":{
-                "updated_at":datetime.datetime.now(tz=datetime.timezone.utc),
+                'updated_at':datetime.datetime.now(tz=datetime.timezone.utc),
+                'last_successful_run': today
             }
         }
     )

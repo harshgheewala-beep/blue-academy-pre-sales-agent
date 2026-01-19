@@ -19,6 +19,12 @@ client = OpenAI(
 )
 
 
+def batch_list(input_list: list, batch_size: int):
+    for i in range(0, len(input_list), batch_size):
+        yield input_list[i:i + batch_size]
+
+
+
 async def build_chunks(payload: dict)-> str:
     return " ".join([
         payload['course_title'],
@@ -54,30 +60,44 @@ async def ingest_course_embedding(payload: list[dict])-> None:
 
     logger.info(f"Ingesting {len(payload)} course embeddings")
 
+    texts: list[str] = []
+    records: list[dict] = []
+
+
     for data in payload:
         text = await build_chunks(data)
-        # full_text = " ".join(data.values())
-        # chunks = chunk_text(full_text)
-        try:
-            response = await asyncio.to_thread(
-                    client.embeddings.create,
-                    model="text-embedding-3-small",
-                    input=text
-                )
+        texts.append(text)
 
-            weaviate_data = {
+    try:
+        response = await asyncio.to_thread(
+            client.embeddings.create,
+            model="text-embedding-3-small",
+            input=texts
+        )
+            
+        weaviate_payloads: list[dict] = []
+
+        for data, emb, text in zip(records, response.data, texts):
+            weaviate_payloads.append({
                 "slug": data["slug"],
-                "embedding": response.data[0].embedding,
+                "embedding_text": text,
+                "embedding": emb.embedding,
                 "metadata": data,
-                "embedding_text": text
-            }
+            })
 
-            await upsert_course_embedding(weaviate_data)
-            logger.info(f"Ingested {data['slug']}")
+            # weaviate_data = {
+            #     "slug": data["slug"],
+            #     "embedding": response.data[0].embedding,
+            #     "metadata": data,
+            #     "embedding_text": text
+            # }
 
-        except Exception:
-            logger.exception(f'Error occurred during ingestion')
-            raise
+        upsert_course_embedding(weaviate_payloads)
+            
+
+    except Exception:
+        logger.exception(f'Error occurred during ingestion')
+        raise
 
     logger.info(f'New courses Ingested')
     return

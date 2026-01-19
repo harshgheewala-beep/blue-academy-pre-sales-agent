@@ -20,8 +20,8 @@ logger = logging.getLogger("Weaviate")
 WEAVIATE_URL = os.getenv("WEAVIATE_URL")
 WEAVIATE_KEY = os.getenv("WEAVIATE_API_KEY")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "course_embeddings")
-WEAVIATE_HOST = os.getenv("WEAVIATE_HOST")
-WEAVIATE_PORT = int(os.getenv("WEAVIATE_PORT"))
+WEAVIATE_HOST = os.getenv("WEAVIATE_HOST",'localhost')
+WEAVIATE_PORT = int(os.getenv("WEAVIATE_PORT",'8010'))
 
 # weaviate_async_client: WeaviateAsyncClient = weaviate.use_async_with_weaviate_cloud(
 #     auth_credentials=Auth.api_key(WEAVIATE_KEY),
@@ -104,12 +104,16 @@ async def init_weaviate():
             index_filterable=True,
         ),
     ])
+
+    await weaviate_async_client.connect()
+    weaviate_client.connect()
     logger.info("Connected to weaviate.")
 
 
 async def close_weaviate():
     logger.info("Closing weaviate...")
     await weaviate_async_client.close()
+    weaviate_client.close()
     logger.debug("Weaviate Closed")
 
 
@@ -125,38 +129,60 @@ def normalize_weaviate_object(obj):
             }
 
 
-async def upsert_course_embedding(payload: dict)-> None:
+def upsert_course_embedding(payloads: list[dict])-> None:
 
-    collection = weaviate_async_client.collections.get(COLLECTION_NAME)
-    collection2 = weaviate_client.collections.get(COLLECTION_NAME)
+    # collection = weaviate_async_client.collections.get(COLLECTION_NAME)
 
 
-    slug = payload.get("slug")
-    if not slug:
-        raise ValueError("Slug is required for deterministic Weaviate ID")
+    # slug = payload.get("slug")
+    # if not slug:
+    #     raise ValueError("Slug is required for deterministic Weaviate ID")
 
     try:
+        with weaviate_client.batch.dynamic() as batch:
+            for payload in payloads:
+                slug = payload["slug"]
+                
+                batch.add_object(
+                    collection=COLLECTION_NAME,
+                    uuid=weaviate_id_from_slug(slug),
+                    properties={
+                        "embedding_text": payload["embedding_text"],
+                        "course_title":payload["metadata"]["course_title"],
+                        "slug": payload["slug"],
+                        "hero_features": payload["metadata"]["hero_features"],
+                        "pricing":payload["metadata"]["fee"],
+                        "skills": payload["metadata"]["skills"],
+                            "prerequisites": payload["metadata"]["prerequisites"],
+                        "target_audience": payload["metadata"]["target_audience"],
+                        "duration": payload["metadata"]["duration"],
+                        "category": payload["metadata"]["category"]
+                    },
+                    vector=payload['embedding'],
+                )
 
-        await collection.data.insert(
-            uuid=weaviate_id_from_slug(payload.get("slug")),
-            properties={
-                    "embedding_text": payload["embedding_text"],
-                    "course_title":payload["metadata"]["course_title"],
-                    "slug": payload["slug"],
-                    "hero_features": payload["metadata"]["hero_features"],
-                    "pricing":payload["metadata"]["fee"],
-                    "skills": payload["metadata"]["skills"],
-                    "prerequisites": payload["metadata"]["prerequisites"],
-                    "target_audience": payload["metadata"]["target_audience"],
-                    "duration": payload["metadata"]["duration"],
-                    "category": payload["metadata"]["category"]
-            },
-                vector=payload.get("embedding"),
-            )
-        return
 
-    except WeaviateInvalidInputException:
-        logger.exception(f'Upsert failed for slug: {slug}')
+        # await collection.data.insert(
+        #     uuid=weaviate_id_from_slug(slug),
+        #     properties={
+        #             "embedding_text": payload["embedding_text"],
+        #             "course_title":payload["metadata"]["course_title"],
+        #             "slug": payload["slug"],
+        #             "hero_features": payload["metadata"]["hero_features"],
+        #             "pricing":payload["metadata"]["fee"],
+        #             "skills": payload["metadata"]["skills"],
+        #             "prerequisites": payload["metadata"]["prerequisites"],
+        #             "target_audience": payload["metadata"]["target_audience"],
+        #             "duration": payload["metadata"]["duration"],
+        #             "category": payload["metadata"]["category"]
+        #     },
+        #         vector=payload.get("embedding"),
+        #     )
+        # return
+
+    
+    except Exception:
+        logger.exception("Weaviate batch ingestion failed")
         raise
 
 
@@ -178,7 +204,7 @@ async def fetch_weaviate_object(slug: str):
 
 
 async def delete_weaviate_object(slug_list: list[str]) -> None:
-    collection = weaviate_client.collections.get(COLLECTION_NAME)
+    collection = weaviate_async_client.collections.get(COLLECTION_NAME)
 
     if not slug_list:
         return

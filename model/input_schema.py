@@ -33,7 +33,6 @@ class CourseChunk(BaseModel):
     embedding: list[float]
 
 
-
 class CourseDetails(BaseModel):
     course_id: str | UUID
     description: str

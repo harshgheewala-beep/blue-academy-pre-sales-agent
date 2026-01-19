@@ -28,8 +28,10 @@ def clean_data_v2(payload: list[dict])-> list[dict]:
     for item in payload:
         data = {
             "course_id": extract_text(item.get("id")),
-            "slug": extract_text(item.get("slug")),
+            'slug': extract_text(item.get("slug")),
+            'subtitle': extract_text(item.get("subtitle")),
             "course_title": clean_text(extract_text(item.get("title"))),
+            "outcomes": clean_text(extract_text(item.get("outcomes"))),
             "course_description": clean_text(extract_text(item.get("subtitle"))),
             "category": clean_text(extract_text(item.get("category"))),
             "duration": clean_text(extract_text(item.get("duration"))),

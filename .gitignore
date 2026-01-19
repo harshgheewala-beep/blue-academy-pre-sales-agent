@@ -6,4 +6,4 @@
 
 **/__pycache__
 pre_sales_agent.egg-info
-/.env.prod
+uv.lock

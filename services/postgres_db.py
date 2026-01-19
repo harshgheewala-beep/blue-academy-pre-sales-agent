@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import logging
+import uuid
 
 from sqlalchemy import (
     TIMESTAMP,
@@ -16,7 +17,7 @@ from sqlalchemy import (
     insert,
     select,
     text as sql_text,
-    update,
+    update, pool,
 )
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
@@ -25,6 +26,7 @@ from agents.items import TResponseInputItem
 from agents.memory.session import SessionABC
 import os
 from dotenv import load_dotenv
+from uuid_utils import uuid7
 
 logger = logging.getLogger("SQLAlchemy")
 load_dotenv()
@@ -46,6 +48,11 @@ def init_async_engine(
         logger.info("Creating Async Engine...")
         _engine = create_async_engine(
             url,
+            future=True,
+            connect_args={'statement_cache_size':0,
+                          "prepared_statement_cache_size": 0,
+                          "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
+                          },
             pool_size=pool_size,
             max_overflow=max_overflow,
             pool_pre_ping=True,

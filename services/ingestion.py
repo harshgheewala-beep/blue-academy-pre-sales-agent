@@ -1,3 +1,5 @@
+import asyncio
+
 from openai import OpenAI
 import os
 import tiktoken
@@ -19,14 +21,16 @@ client = OpenAI(
 
 async def build_chunks(payload: dict)-> str:
     return " ".join([
-        payload["course_title"],
+        payload['course_title'],
+        payload['subtitle'],
         f",Pricing is {payload['fee']},",
         f",Skills Gain : {payload['skills']},",
         f"Category is {payload['category']}",
-        payload["hero_features"],
-        payload["curriculum"],
-        payload["course_description"],
-        payload["faqs"],
+        f"Course Outcome is {payload['outcomes']},",
+        f"Hero Features : {payload['hero_features']}",
+        payload['curriculum'],
+        payload['course_description'],
+        payload['faqs'],
     ])
 
 
@@ -42,28 +46,43 @@ def chunk_text(text: str, chunk_size: int = 400):
     return chunks
 
 
-async def ingest_course_embedding(payload: list[dict]):
+async def ingest_course_embedding(payload: list[dict])-> None:
 
-    logger.info("Ingesting course embeddings")
-    complete_status = False
+    if not payload:
+        logger.info('No Document to Ingest')
+        return
+
+    logger.info(f"Ingesting {len(payload)} course embeddings")
+
     for data in payload:
-        chunks = await build_chunks(data)
+        text = await build_chunks(data)
         # full_text = " ".join(data.values())
         # chunks = chunk_text(full_text)
+        try:
+            response = await asyncio.to_thread(
+                    client.embeddings.create,
+                    model="text-embedding-3-small",
+                    input=text
+                )
 
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=chunks
-        ).data[0]
+            weaviate_data = {
+                "slug": data["slug"],
+                "embedding": response.data[0].embedding,
+                "metadata": data,
+                "embedding_text": text
+            }
 
-        weaviate_data = {
-            "slug": data["slug"],
-            "embedding": response.embedding,
-            "metadata": data,
-            "embedding_text": chunks
-        }
-        complete_status = await upsert_course_embedding(weaviate_data)
+            await upsert_course_embedding(weaviate_data)
+            logger.info(f"Ingested {data['slug']}")
 
-    return complete_status
+        except Exception:
+            logger.exception(f'Error occurred during ingestion')
+            raise
+
+    logger.info(f'New courses Ingested')
+    return
+
+
+
 
 

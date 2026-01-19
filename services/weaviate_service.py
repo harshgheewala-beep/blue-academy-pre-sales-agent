@@ -23,11 +23,11 @@ COLLECTION_NAME = os.getenv("COLLECTION_NAME", "course_embeddings")
 WEAVIATE_HOST = os.getenv("WEAVIATE_HOST")
 WEAVIATE_PORT = int(os.getenv("WEAVIATE_PORT"))
 
-weaviate_async_client: WeaviateAsyncClient = weaviate.use_async_with_weaviate_cloud(
-    auth_credentials=Auth.api_key(WEAVIATE_KEY),
-    cluster_url=WEAVIATE_URL,
-    skip_init_checks=False,
-)
+# weaviate_async_client: WeaviateAsyncClient = weaviate.use_async_with_weaviate_cloud(
+#     auth_credentials=Auth.api_key(WEAVIATE_KEY),
+#     cluster_url=WEAVIATE_URL,
+#     skip_init_checks=False,
+# )
 
 
 weaviate_client: WeaviateClient = weaviate.connect_to_local(
@@ -36,10 +36,10 @@ weaviate_client: WeaviateClient = weaviate.connect_to_local(
     skip_init_checks=True,
 )
 
-# weaviate_client: WeaviateAsyncClient = weaviate.use_async_with_local(
-#     host=WEAVIATE_HOST,
-#     port=WEAVIATE_PORT
-# )
+weaviate_async_client: WeaviateAsyncClient = weaviate.use_async_with_local(
+    host=WEAVIATE_HOST,
+    port=WEAVIATE_PORT
+)
 
 
 async def init_weaviate():

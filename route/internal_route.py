@@ -1,7 +1,5 @@
 import time
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
-import uuid
 from services.mongo_db import get_sync_details, update_sync_details, fetch_changes, increment_interest_count
 from services.ingestion import  ingest_course_embedding
 from services.weaviate_service import delete_weaviate_object

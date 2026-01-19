@@ -49,7 +49,9 @@ async def lifespan(app: FastAPI):
         max_overflow=20,
         echo=False
     )
+
     yield
+
     await disconnect_redis()
     await close_weaviate()
     close_sqlite()

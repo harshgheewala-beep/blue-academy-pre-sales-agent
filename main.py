@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
         max_overflow=20,
         echo=False
     )
-
+    
     yield
 
     await disconnect_redis()
@@ -105,4 +105,4 @@ async def health():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host=os.getenv("HOST"), port=5000)
+    uvicorn.run(app,host='0.0.0.0', port=5000)

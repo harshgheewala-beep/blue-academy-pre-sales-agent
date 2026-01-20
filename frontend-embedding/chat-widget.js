@@ -93,12 +93,12 @@
       position: fixed;
       bottom: 18px;
       right: 24px;
-      width: 46px;
-      height: 46px;
+      width: 55px;
+      height: 55px;
       border-radius: 50%;
       background: #155dfc;
       color: white;
-      font-size: 28px;
+      font-size: 24px;
       border: none;
       cursor: pointer;
       box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45);
@@ -113,6 +113,36 @@
       transform: scale(1.1);
       box-shadow: 0 12px 28px rgba(37, 99, 235, 0.55);
       background: #1447e6
+    }
+
+    /* --- TOOLTIP (ADDED) --- */
+    #bdc-chat-tooltip {
+      position: fixed;
+      bottom: 28px; /* Aligned with the center of the 55px button */
+      right: 90px;  /* Spaced to the left of the button */
+      background-color: white;
+      color: #1e293b;
+      padding: 8px 16px;
+      border-radius: 8px;
+      margin-right: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(10px);
+      transition: all 0.3s ease;
+      z-index: 99998;
+      pointer-events: none;
+      white-space: nowrap;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    /* Show tooltip when hovering over the launcher */
+    #bdc-chat-launcher:hover + #bdc-chat-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
     }
 
     /* --- WIDGET CONTAINER --- */
@@ -326,9 +356,13 @@
    *************************/
   const launcher = document.createElement("button");
   launcher.id = "bdc-chat-launcher";
-  // Changed icon to a cleaner SVG look or simple emoji
-  launcher.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
+  // Updated SVG icon here:
+  launcher.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>`;
 
+  // Create the Tooltip Element
+  const tooltip = document.createElement("div");
+  tooltip.id = "bdc-chat-tooltip";
+  tooltip.innerText = "Chat with Agent";
 
   const widget = document.createElement("div");
   widget.id = "bdc-chat-widget";
@@ -349,6 +383,8 @@
   `;
 
   document.body.appendChild(launcher);
+  // Append tooltip immediately after launcher to enable CSS sibling selector
+  document.body.appendChild(tooltip);
   document.body.appendChild(widget);
 
   const messagesEl = widget.querySelector("#bdc-chat-messages");
